@@ -157,7 +157,7 @@ cdef double [:, :, :, ::1] perform_convolution (double [:, :, :, ::1] odfs,
         cnp.npy_intp all_cores = openmp.omp_get_num_procs()
         cnp.npy_intp corient, orient, cx, cy, cz, x, y, z
         cnp.npy_intp expectedvox
-        cnp.npy_intp edgeNormalization = True
+        cnp.npy_intp edgeNormalization = False
 
     if num_threads is not None:
         threads_to_use = num_threads
@@ -185,17 +185,15 @@ cdef double [:, :, :, ::1] perform_convolution (double [:, :, :, ::1] odfs,
                 for cy in range(ny):
                     for cz in range(nz):
                         # loop over kernel x,y,z,orient --> x and r
-                        for x in range(int_max(cx - hn, 0), 
-                                       int_min(cx + hn + 1, ny - 1)):
-                             for y in range(int_max(cy - hn, 0), 
-                                            int_min(cy + hn + 1, ny - 1)):
-                                 for z in range(int_max(cz - hn, 0), 
-                                                int_min(cz + hn + 1, nz - 1)):
+                        for x in range(int_max(cx - hn, 0),
+                                       int_min(cx + hn + 1, nx)):
+                            for y in range(int_max(cy - hn, 0),
+                                           int_min(cy + hn + 1, ny)):
+                                for z in range(int_max(cz - hn, 0), 
+                                               int_min(cz + hn + 1, nz)):
                                     voxcount[corient, cx, cy, cz] += 1.0
                                     for orient in range(0, OR2):
-                                        totalval[corient, cx, cy, cz] += \
-                                            odfs[x, y, z, orient] * \
-                                            lut[corient, orient, x - (cx - hn), y - (cy - hn), z - (cz - hn)]
+                                        totalval[corient, cx, cy, cz] += odfs[x, y, z, orient] * lut[corient, orient, x - (cx - hn), y - (cy - hn), z - (cz - hn)]
                         if edgeNormalization:
                             output[cx, cy, cz, corient] = \
                                 totalval[corient, cx, cy, cz] * expectedvox/voxcount[corient, cx, cy, cz]
