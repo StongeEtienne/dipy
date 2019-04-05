@@ -171,19 +171,19 @@ label_value = ui.TextBlock2D(text='Value:')
 result_position = ui.TextBlock2D(text='')
 result_value = ui.TextBlock2D(text='')
 
-panel_picking = ui.Panel2D(center=(200, 120),
-                           size=(250, 125),
+panel_picking = ui.Panel2D(size=(250, 125),
+                           position=(20, 20),
                            color=(0, 0, 0),
                            opacity=0.75,
                            align="left")
 
-panel_picking.add_element(label_position, 'relative', (0.1, 0.55))
-panel_picking.add_element(label_value, 'relative', (0.1, 0.25))
+panel_picking.add_element(label_position, (0.1, 0.55))
+panel_picking.add_element(label_value, (0.1, 0.25))
 
-panel_picking.add_element(result_position, 'relative', (0.45, 0.55))
-panel_picking.add_element(result_value, 'relative', (0.45, 0.25))
+panel_picking.add_element(result_position, (0.45, 0.55))
+panel_picking.add_element(result_value, (0.45, 0.25))
 
-show_m.ren.add(panel_picking)
+renderer.add(panel_picking)
 
 """
 Add a left-click callback to the slicer. Also disable interpolation so you can
@@ -198,11 +198,12 @@ def left_click_callback(obj, ev):
     obj.picker.Pick(event_pos[0],
                     event_pos[1],
                     0,
-                    show_m.ren)
+                    renderer)
 
     i, j, k = obj.picker.GetPointIJK()
     result_position.message = '({}, {}, {})'.format(str(i), str(j), str(k))
     result_value.message = '%.8f' % data[i, j, k]
+
 
 fa_actor.SetInterpolate(False)
 fa_actor.AddObserver('LeftButtonPressEvent', left_click_callback, 1.0)
@@ -237,11 +238,12 @@ def left_click_callback_mosaic(obj, ev):
     obj.picker.Pick(event_pos[0],
                     event_pos[1],
                     0,
-                    show_m_mosaic.ren)
+                    renderer)
 
     i, j, k = obj.picker.GetPointIJK()
     result_position.message = '({}, {}, {})'.format(str(i), str(j), str(k))
     result_value.message = '%.8f' % data[i, j, k]
+
 
 """
 Now we need to create two nested for loops which will set the positions of
@@ -276,7 +278,7 @@ for j in range(rows):
         break
 
 renderer.reset_camera()
-renderer.zoom(1.6)
+renderer.zoom(1.0)
 
 # show_m_mosaic.ren.add(panel_picking)
 # show_m_mosaic.start()

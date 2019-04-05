@@ -29,9 +29,9 @@ On all platforms, you can use Anaconda_ to install DIPY. To do so issue the foll
 
     conda install -c conda-forge dipy
 
-Some of the visualization methods require the VTK_ library and this can be installed separately (for the time being only on Python 2.7 and Python 3.6)::
+Some of the visualization methods require the FURY_ library and this can be installed separately (for the time being only on Python 3.4+)::
 
-    conda install vtk
+    conda install -c conda-forge fury
 
 Using packages:
 ===============
@@ -59,9 +59,9 @@ Windows
 
    This should work with no error.
 
-#. Some of the visualization methods require the VTK_ library and this can be installed by doing ::
+#. Some of the visualization methods require the FURY_ library and this can be installed by doing ::
 
-    pip install vtk
+    pip install fury
 
 
 OSX
@@ -85,9 +85,9 @@ OSX
 
    This should work with no error.
 
-#. Some of the visualization methods require the VTK_ library and this can be installed by doing::
+#. Some of the visualization methods require the FURY_ library and this can be installed by doing::
 
-    pip install vtk
+    pip install fury
 
 Linux
 -----
@@ -162,9 +162,8 @@ DIPY can process large diffusion datasets. For this reason we recommend using a 
 Note on python versions
 -----------------------
 
-Most of the functionality in DIPY supports versions of Python from 2.6 to 3.6.
-However, some visualization functionality depends on VTK_, Only VTK_ 7 work with Python 3 versions.
-Therefore, if you want to use the visualization functions in DIPY with VTK_ < 7, please use it with Python 2.
+Most DIPY functionality can be used with Python versions 2.6 and newer, including Python 3.
+However, some visualization functionality depends on FURY, which only supports Python 3 in versions 7 and newer.
 
 .. _from-source:
 
@@ -384,7 +383,7 @@ Testing
 
 If you want to run the tests::
 
-    sudo pip install nose
+    sudo pip install pytest nose
 
 Then (in python or ipython_)::
 

@@ -6,7 +6,7 @@ import numpy.testing as npt
 
 from dipy.core.gradients import gradient_table
 from dipy.core.sphere import HemiSphere, unit_octahedron
-from dipy.data import get_data, get_sphere
+from dipy.data import get_fnames, get_sphere
 from dipy.direction import (BootDirectionGetter,
                             ClosestPeakDirectionGetter,
                             DeterministicMaximumDirectionGetter,
@@ -83,26 +83,26 @@ def test_stop_conditions():
     # Check that the first streamline stops at 0 and 3 (ENDPOINT)
     y = 0
     sl = next(streamlines_not_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 3])
-    npt.assert_equal(len(sl), 4)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 2])
+    npt.assert_equal(len(sl), 2)
 
     sl = next(streamlines_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 3])
-    npt.assert_equal(len(sl), 4)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 2])
+    npt.assert_equal(len(sl), 2)
 
     # Check that the first streamline stops at 0 and 4 (ENDPOINT)
     y = 1
     sl = next(streamlines_not_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 4])
-    npt.assert_equal(len(sl), 5)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 3])
+    npt.assert_equal(len(sl), 3)
 
     sl = next(streamlines_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 4])
-    npt.assert_equal(len(sl), 5)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 3])
+    npt.assert_equal(len(sl), 3)
 
     # This streamline should be the same as above. This row does not have
     # ENDPOINTs, but the streamline should stop at the edge and not include
@@ -136,16 +136,16 @@ def test_stop_conditions():
     # The streamline stops at 0 (INVALIDPOINT) and 4 (ENDPOINT)
     y = 4
     sl = next(streamlines_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 4])
-    npt.assert_equal(len(sl), 5)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 3])
+    npt.assert_equal(len(sl), 3)
 
     # The streamline stops at 0 (INVALIDPOINT) and 4 (INVALIDPOINT)
     y = 5
     sl = next(streamlines_all)
-    npt.assert_equal(sl[0], [0, y, 0])
-    npt.assert_equal(sl[-1], [0, y, 3])
-    npt.assert_equal(len(sl), 4)
+    npt.assert_equal(sl[0], [0, y, 1])
+    npt.assert_equal(sl[-1], [0, y, 2])
+    npt.assert_equal(len(sl), 2)
 
     # The last streamline should contain only one point, the seed point,
     # because no valid inital direction was returned.
@@ -188,8 +188,7 @@ def test_probabilistic_odf_weighted_tracker():
                           [2., 1., 0.],
                           [2., 2., 0.],
                           [2., 3., 0.],
-                          [2., 4., 0.],
-                          [2., 5., 0.]]),
+                          [2., 4., 0.]]),
                 np.array([[0., 1., 0.],
                           [1., 1., 0.],
                           [2., 1., 0.],
@@ -508,8 +507,7 @@ def test_maximum_deterministic_tracker():
                           [2., 1., 0.],
                           [2., 2., 0.],
                           [2., 3., 0.],
-                          [2., 4., 0.],
-                          [2., 5., 0.]]),
+                          [2., 4., 0.]]),
                 np.array([[0., 1., 0.],
                           [1., 1., 0.],
                           [2., 1., 0.],
@@ -591,8 +589,7 @@ def test_bootstap_peak_tracker():
                           [2., 1., 0.],
                           [3., 1., 0.],
                           [4., 1., 0.]]),
-                np.array([[2., 5., 0.],
-                          [2., 4., 0.],
+                np.array([[2., 4., 0.],
                           [2., 3., 0.],
                           [2., 2., 0.],
                           [2., 1., 0.],
@@ -645,8 +642,7 @@ def test_closest_peak_tracker():
                           [2., 1., 0.],
                           [2., 2., 0.],
                           [2., 3., 0.],
-                          [2., 4., 0.],
-                          [2., 5., 0.]])]
+                          [2., 4., 0.]])]
 
     if not allclose(streamlines[0], expected[0]):
         raise AssertionError()
@@ -757,17 +753,13 @@ def test_affine_transformations():
     seeds = [np.array([1., 1., 0.]),
              np.array([2., 4., 0.])]
 
-    expected = [np.array([[0., 1., 0.],
-                          [1., 1., 0.],
+    expected = [np.array([[1., 1., 0.],
                           [2., 1., 0.],
-                          [3., 1., 0.],
-                          [4., 1., 0.]]),
-                np.array([[2., 0., 0.],
-                          [2., 1., 0.],
+                          [3., 1., 0.]]),
+                np.array([[2., 1., 0.],
                           [2., 2., 0.],
                           [2., 3., 0.],
-                          [2., 4., 0.],
-                          [2., 5., 0.]])]
+                          [2., 4., 0.]])]
 
     mask = (simple_image > 0).astype(float)
     tc = BinaryTissueClassifier(mask)
@@ -803,7 +795,7 @@ def test_affine_transformations():
     # TST - in vivo affine exemple
     # Sometimes data have affines with tiny shear components.
     # For example, the small_101D data-set has some of that:
-    fdata, _, _ = get_data('small_101D')
+    fdata, _, _ = get_fnames('small_101D')
     a6 = nib.load(fdata).affine
 
     for affine in [a0, a1, a2, a3, a4, a5, a6]:

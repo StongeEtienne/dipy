@@ -23,6 +23,9 @@
 .. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
   :target: https://github.com/nipy/dipy/blob/master/LICENSE
 
+.. image:: https://ci.appveyor.com/api/projects/status/github/nipy/dipy?branch=master&svg=true
+  :target: https://ci.appveyor.com/project/nipy/dipy
+
 DIPY [DIPYREF]_ is a python library for analysis of MR diffusion imaging.
 
 DIPY is for research only; please do not use results from DIPY for
@@ -40,7 +43,7 @@ Please see the developers' list at
 https://mail.python.org/mailman/listinfo/neuroimaging
 
 Please see the users' forum at
-https://neurostars.org
+https://neurostars.org/tags/dipy
 
 Please join the gitter chatroom `here <https://gitter.im/nipy/dipy>`_.
 
@@ -67,10 +70,10 @@ DIPY can be installed using `pip`::
 
 or using `conda`::
 
-    conda install -c conda-forge dipy vtk
+    conda install -c conda-forge dipy
 
 For detailed installation instructions, including instructions for installing
-from source, please read our `documentation <http://nipy.org/dipy/installation.html>`_.
+from source, please read our `installation documentation <http://nipy.org/dipy/installation.html>`_.
 
 
 License

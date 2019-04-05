@@ -65,7 +65,6 @@ from numpy import (asarray, ceil, dot, empty, eye, sqrt)
 from dipy.io.bvectxt import ornt_mapping
 from dipy.tracking import metrics
 from dipy.tracking.vox2track import _streamlines_in_mask
-from dipy.testing import setup_test
 
 # Import helper functions shared with vox2track
 from dipy.tracking._utils import (_mapping_to_voxel, _to_voxel_coordinates)
@@ -500,7 +499,7 @@ def random_seeds_from_mask(mask, seeds_count=1, seed_count_per_voxel=True,
             # seeds per voxel and the global random seed.
             if random_seed is not None:
                 s_random_seed = hash((np.sum(s) + 1) * i + random_seed) \
-                           % (2**32 - 1)
+                    % (2**32 - 1)
                 np.random.seed(s_random_seed)
             # Generate random triplet
             grid = np.random.random(3)
@@ -1023,7 +1022,7 @@ def flexi_tvis_affine(sl_vox_order, grid_affine, dim, voxel_size):
     sl_ornt = orientation_from_string(str(sl_vox_order))
     grid_ornt = nib.io_orientation(grid_affine)
     reorder_grid = reorder_voxels_affine(
-        grid_ornt, sl_ornt, np.array(dim)-1, np.array([1,1,1]))
+        grid_ornt, sl_ornt, np.array(dim)-1, np.array([1, 1, 1]))
 
     tvis_aff = affine_for_trackvis(voxel_size)
 
@@ -1040,9 +1039,11 @@ def get_flexi_tvis_affine(tvis_hdr, nii_aff):
     ----------
     tvis_hdr : header from a trackvis file
     nii_aff : array (4, 4),
-        An affine matrix describing the current space of the grid in relation to RAS+ scanner space
+        An affine matrix describing the current space of the grid in relation
+        to RAS+ scanner space
     nii_data : nd array
-        3D array, each with shape (x, y, z) corresponding to the shape of the brain volume.
+        3D array, each with shape (x, y, z) corresponding to the shape of the
+        brain volume.
 
     Returns
     -------
@@ -1072,6 +1073,7 @@ def _min_at(a, index, value):
     value = value[uniq]
 
     a[tuple(index)] = np.minimum(a[tuple(index)], value)
+
 
 try:
     minimum_at = np.minimum.at
