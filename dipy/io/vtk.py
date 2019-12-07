@@ -37,7 +37,7 @@ def save_vtk_streamlines(streamlines, filename,
         to_lps[1, 1] = -1
         streamlines = transform_streamlines(streamlines, to_lps)
 
-    polydata = lines_to_vtk_polydata(streamlines, colors=False)
+    polydata = lines_to_vtk_polydata(streamlines, colors=None)
     save_polydata(polydata, filename, binary=binary)
 
 
