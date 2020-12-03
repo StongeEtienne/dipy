@@ -8,7 +8,6 @@ from numpy.testing import (assert_array_equal,
                            assert_equal,
                            assert_raises)
 from dipy.core import geometry as geometry
-from dipy.data import get_data
 from dipy.viz import regtools as rt
 from dipy.align import floating
 from dipy.align import vector_fields as vf
@@ -46,10 +45,10 @@ def test_transform_centers_of_mass_3d():
     np.random.seed(1246592)
     shape = (64, 64, 64)
     rm = 8
-    sp = vf.create_sphere(shape[0] // 2, shape[1] // 2, shape[2] // 2, rm)
+    sph = vf.create_sphere(shape[0] // 2, shape[1] // 2, shape[2] // 2, rm)
     moving = np.zeros(shape)
     # The center of mass will be (16, 16, 16), in image coordinates
-    moving[:shape[0] // 2, :shape[1] // 2, :shape[2] // 2] = sp[...]
+    moving[:shape[0] // 2, :shape[1] // 2, :shape[2] // 2] = sph[...]
 
     rs = 16
     # The center of mass will be (32, 32, 32), in image coordinates
@@ -322,7 +321,7 @@ def test_mi_gradient():
         # Compute the gradient with the implementation under test
         actual = mi_metric.gradient(theta)
 
-        # Compute the gradient using finite-diferences
+        # Compute the gradient using finite-differences
         n = transform.get_number_of_parameters()
         expected = np.empty(n, dtype=np.float64)
 
@@ -459,8 +458,8 @@ def test_affine_map():
                                             dom_shape[:dim], domain_grid2world,
                                             cod_shape[:dim],
                                             codomain_grid2world)
-            actual_linear = affine_map.transform(img, interp='linear')
-            actual_nn = affine_map.transform(img, interp='nearest')
+            actual_linear = affine_map.transform(img, interpolation='linear')
+            actual_nn = affine_map.transform(img, interpolation='nearest')
             assert_array_almost_equal(actual_linear, expected_linear)
             assert_array_almost_equal(actual_nn, expected_nn)
 
@@ -473,7 +472,7 @@ def test_affine_map():
                 # compatibility with previous versions
                 assert_array_equal(affine, affine_map.affine)
                 # new getter
-                new_copy_affine = affine_map.get_affine()
+                new_copy_affine = affine_map.affine
                 # value must be the same
                 assert_array_equal(affine, new_copy_affine)
                 # but not its reference
@@ -499,14 +498,16 @@ def test_affine_map():
                                             cod_shape[:dim],
                                             codomain_grid2world,
                                             dom_shape[:dim], domain_grid2world)
-            actual_linear = affine_map.transform_inverse(img, interp='linear')
-            actual_nn = affine_map.transform_inverse(img, interp='nearest')
+            actual_linear = affine_map.transform_inverse(
+                img, interpolation='linear')
+            actual_nn = affine_map.transform_inverse(img,
+                                                     interpolation='nearest')
             assert_array_almost_equal(actual_linear, expected_linear)
             assert_array_almost_equal(actual_nn, expected_nn)
 
         # Verify AffineMap can not be created with non-square matrix
-        non_square_shapes = [ np.zeros((dim, dim + 1), dtype=np.float64),
-                           np.zeros((dim + 1, dim), dtype=np.float64) ]
+        non_square_shapes = [np.zeros((dim, dim + 1), dtype=np.float64),
+                             np.zeros((dim + 1, dim), dtype=np.float64)]
         for nsq in non_square_shapes:
             assert_raises(AffineInversionError, AffineMap, nsq)
 
@@ -515,12 +516,12 @@ def test_affine_map():
             aff_map = AffineMap(affine_mat)
             if affine_mat is None:
                 continue
-            bad_aug = aff_map.get_affine()
+            bad_aug = aff_map.affine
             # no zeros in the first n-1 columns on last row
-            bad_aug[-1,:] = 1
+            bad_aug[-1, :] = 1
             assert_raises(AffineInvalidValuesError, AffineMap, bad_aug)
 
-            bad_aug = aff_map.get_affine()
+            bad_aug = aff_map.affine
             bad_aug[-1, -1] = 0  # lower right not 1
             assert_raises(AffineInvalidValuesError, AffineMap, bad_aug)
 
@@ -576,8 +577,10 @@ def test_affine_map():
                 AffineInvalidValuesError,
                 affine_map.set_affine,
                 aff_sing)
-            assert_raises(AffineInvalidValuesError, affine_map.set_affine, aff_nan)
-            assert_raises(AffineInvalidValuesError, affine_map.set_affine, aff_inf)
+            assert_raises(AffineInvalidValuesError, affine_map.set_affine,
+                          aff_nan)
+            assert_raises(AffineInvalidValuesError, affine_map.set_affine,
+                          aff_inf)
 
     # Verify AffineMap can not be created with non-2D matrices : len(shape) != 2
     for dim_not_2 in range(10):

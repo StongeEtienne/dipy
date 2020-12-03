@@ -1,3 +1,7 @@
+from time import time
+from itertools import chain
+import logging
+
 import numpy as np
 from dipy.tracking.streamline import (set_number_of_points, nbytes,
                                       select_random_set_of_streamlines)
@@ -8,8 +12,6 @@ from dipy.align.streamlinear import (StreamlineLinearRegistration,
                                      BundleMinDistanceMetric,
                                      BundleSumDistanceMatrixMetric,
                                      BundleMinDistanceAsymmetricMetric)
-from time import time
-from itertools import chain
 
 from dipy.tracking.streamline import Streamlines, length
 from nibabel.affines import apply_affine
@@ -23,14 +25,29 @@ def check_range(streamline, gt, lt):
         return False
 
 
+logger = logging.getLogger(__name__)
+
+
 def bundle_adjacency(dtracks0, dtracks1, threshold):
     """ Find bundle adjacency between two given tracks/bundles
 
     Parameters
-        ----------
-        dtracks0 : Streamlines
-        dtracks1 : Streamlines
-        threshold: float
+    ----------
+    dtracks0 : Streamlines
+        White matter tract from one subject
+    dtracks1 : Streamlines
+        White matter tract from another subject
+    threshold : float
+        Threshold controls
+        how much strictness user wants while calculating bundle adjacency
+        between two bundles. Smaller threshold means bundles should be strictly
+        adjacent to get higher BA score.
+
+    Returns
+    -------
+    res : Float
+        Bundle adjacency score between two tracts
+
     References
     ----------
     .. [Garyfallidis12] Garyfallidis E. et al., QuickBundles a method for
@@ -62,20 +79,138 @@ def bundle_adjacency(dtracks0, dtracks1, threshold):
     return res
 
 
-def ba_analysis(recognized_bundle, expert_bundle, threshold=2.):
+def ba_analysis(recognized_bundle, expert_bundle, nb_pts=20, threshold=6.):
+    """ Calculates bundle adjacency score between two given bundles
 
-    recognized_bundle = set_number_of_points(recognized_bundle, 20)
+    Parameters
+    ----------
+    recognized_bundle : Streamlines
+        Extracted bundle from the whole brain tractogram (eg: AF_L)
+    expert_bundle : Streamlines
+        Model bundle used as reference while extracting similar type bundle
+        from inout tractogram
+    nb_pts : integer (default 20)
+        Discretizing streamlines to have nb_pts number of points
+    threshold : float (default 6)
+        Threshold used for in computing bundle adjacency. Threshold controls
+        how much strictness user wants while calculating bundle adjacency
+        between two bundles. Smaller threshold means bundles should be strictly
+        adjacent to get higher BA score.
 
-    expert_bundle = set_number_of_points(expert_bundle, 20)
+    Returns
+    -------
+        Bundle adjacency score between two tracts
+
+    References
+    ----------
+    .. [Garyfallidis12] Garyfallidis E. et al., QuickBundles a method for
+                        tractography simplification, Frontiers in Neuroscience,
+                        vol 6, no 175, 2012.
+    """
+
+    recognized_bundle = set_number_of_points(recognized_bundle, nb_pts)
+
+    expert_bundle = set_number_of_points(expert_bundle, nb_pts)
 
     return bundle_adjacency(recognized_bundle, expert_bundle, threshold)
+
+
+def cluster_bundle(bundle, clust_thr, rng, nb_pts=20, select_randomly=500000):
+    """ Clusters bundles
+
+    Parameters
+    ----------
+    bundle : Streamlines
+        White matter tract
+    clust_thr : float
+        clustering threshold used in quickbundlesX
+    rng : RandomState
+    nb_pts: integer (default 20)
+        Discretizing streamlines to have nb_points number of points
+    select_randomly: integer (default 500000)
+        Randomly select streamlines from the input bundle
+
+    Returns
+    -------
+    centroids : Streamlines
+        clustered centroids of the input bundle
+
+    References
+    ----------
+    .. [Garyfallidis12] Garyfallidis E. et al., QuickBundles a method for
+                        tractography simplification, Frontiers in Neuroscience,
+                        vol 6, no 175, 2012.
+   """
+
+    model_cluster_map = qbx_and_merge(bundle, clust_thr,
+                                      nb_pts=nb_pts,
+                                      select_randomly=select_randomly,
+                                      rng=rng)
+    centroids = model_cluster_map.centroids
+
+    return centroids
+
+
+def bundle_shape_similarity(bundle1, bundle2, rng, clust_thr=[5, 3, 1.5],
+                            threshold=6):
+    """ Calculates bundle shape similarity between two given bundles using
+    bundle adjacency (BA) metric
+
+    Parameters
+    ----------
+    bundle1 : Streamlines
+        White matter tract from one subject (eg: AF_L)
+    bundle2 : Streamlines
+        White matter tract from another subject (eg: AF_L)
+    rng : RandomState
+    clust_thr : list of float (default [5, 3, 1.5])
+        list of clustering thresholds used in quickbundlesX
+    threshold : float (default 6)
+        Threshold used for in computing bundle adjacency. Threshold controls
+        how much strictness user wants while calculating shape similarity
+        between two bundles. Smaller threshold means bundles should be strictly
+        similar to get higher shape similarity score.
+
+    Returns
+    -------
+    ba_value : Float
+        Bundle similarity score between two tracts
+
+    References
+    ----------
+    .. [Chandio2020] Chandio, B.Q., Risacher, S.L., Pestilli, F., Bullock, D.,
+    Yeh, FC., Koudoro, S., Rokem, A., Harezlack, J., and Garyfallidis, E.
+    Bundle analytics, a computational framework for investigating the
+    shapes and profiles of brain pathways across populations.
+    Sci Rep 10, 17149 (2020)
+
+    .. [Garyfallidis12] Garyfallidis E. et al., QuickBundles a method for
+                        tractography simplification, Frontiers in Neuroscience,
+                        vol 6, no 175, 2012.
+    """
+
+    if len(bundle1) == 0 or len(bundle2) == 0:
+        return 0
+
+    bundle1_centroids = cluster_bundle(bundle1, clust_thr=clust_thr,
+                                       rng=rng)
+    bundle2_centroids = cluster_bundle(bundle2, clust_thr=clust_thr,
+                                       rng=rng)
+    bundle1_centroids = Streamlines(bundle1_centroids)
+    bundle2_centroids = Streamlines(bundle2_centroids)
+
+    ba_value = ba_analysis(recognized_bundle=bundle1_centroids,
+                           expert_bundle=bundle2_centroids,
+                           threshold=threshold)
+
+    return ba_value
 
 
 class RecoBundles(object):
 
     def __init__(self, streamlines,  greater_than=50, less_than=1000000,
                  cluster_map=None, clust_thr=15, nb_pts=20,
-                 rng=None, verbose=True):
+                 rng=None, verbose=False):
         """ Recognition of bundles
 
         Extract bundles from a participants' tractograms using model bundles
@@ -91,14 +226,18 @@ class RecoBundles(object):
             this value (default 50)
         less_than : int, optional
             Keep streamlines have length less than this value (default 1000000)
-        cluster_map : QB map
+        cluster_map : QB map, optional.
             Provide existing clustering to start RB faster (default None).
-        clust_thr : float
-            Distance threshold in mm for clustering `streamlines`
+        clust_thr : float, optional.
+            Distance threshold in mm for clustering `streamlines`.
+            Default: 15.
+        nb_pts : int, optional.
+            Number of points per streamline (default 20)
         rng : RandomState
             If None define RandomState in initialization function.
-        nb_pts : int
-            Number of points per streamline (default 20)
+            Default: None
+        verbose: bool, optional.
+            If True, log information.
 
         Notes
         -----
@@ -121,11 +260,12 @@ class RecoBundles(object):
         self.orig_indices = np.array(list(range(0, len(streamlines))))
         self.filtered_indices = np.array(self.orig_indices[map_ind])
         self.streamlines = Streamlines(streamlines[map_ind])
-        print("target brain streamlines length = ", len(streamlines))
-        print("After refining target brain streamlines length = ",
-              len(self.streamlines))
         self.nb_streamlines = len(self.streamlines)
         self.verbose = verbose
+        if self.verbose:
+            logger.info("target brain streamlines length = %s" % len(streamlines))
+            logger.info("After refining target brain streamlines" +
+                        "length = %s" % len(self.streamlines))
 
         self.start_thr = [40, 25, 20]
         if rng is None:
@@ -146,20 +286,20 @@ class RecoBundles(object):
             self.indices = [cluster.indices for cluster in self.cluster_map]
 
             if self.verbose:
-                print(' Streamlines have %d centroids'
-                      % (self.nb_centroids,))
-                print(' Total loading duration %0.3f sec. \n'
-                      % (time() - t,))
+                logger.info(' Streamlines have %d centroids'
+                            % (self.nb_centroids,))
+                logger.info(' Total loading duration %0.3f sec. \n'
+                            % (time() - t,))
 
     def _cluster_streamlines(self, clust_thr, nb_pts):
 
         if self.verbose:
             t = time()
-            print('# Cluster streamlines using QBx')
-            print(' Tractogram has %d streamlines'
-                  % (len(self.streamlines), ))
-            print(' Size is %0.3f MB' % (nbytes(self.streamlines),))
-            print(' Distance threshold %0.3f' % (clust_thr,))
+            logger.info('# Cluster streamlines using QBx')
+            logger.info(' Tractogram has %d streamlines'
+                        % (len(self.streamlines), ))
+            logger.info(' Size is %0.3f MB' % (nbytes(self.streamlines),))
+            logger.info(' Distance threshold %0.3f' % (clust_thr,))
 
         # TODO this needs to become a default parameter
         thresholds = self.start_thr + [clust_thr]
@@ -174,14 +314,15 @@ class RecoBundles(object):
         self.indices = [cluster.indices for cluster in self.cluster_map]
 
         if self.verbose:
-            print(' Streamlines have %d centroids'
-                  % (self.nb_centroids,))
-            print(' Total duration %0.3f sec. \n' % (time() - t,))
+            logger.info(' Streamlines have %d centroids'
+                        % (self.nb_centroids,))
+            logger.info(' Total duration %0.3f sec. \n' % (time() - t,))
 
     def recognize(self, model_bundle, model_clust_thr,
                   reduction_thr=10,
                   reduction_distance='mdf',
                   slr=True,
+                  slr_num_threads=None,
                   slr_metric=None,
                   slr_x0=None,
                   slr_bounds=None,
@@ -197,7 +338,7 @@ class RecoBundles(object):
         model_clust_thr : float
         reduction_thr : float
         reduction_distance : string
-            mdf or mam (default mam)
+            mdf or mam (default mdf)
         slr : bool
             Use Streamline-based Linear Registration (SLR) locally
             (default True)
@@ -228,14 +369,13 @@ class RecoBundles(object):
             bundles using local and global streamline-based registration and
             clustering, Neuroimage, 2017.
         """
-
         if self.verbose:
             t = time()
-            print('## Recognize given bundle ## \n')
+            logger.info('## Recognize given bundle ## \n')
 
         model_centroids = self._cluster_model_bundle(
-                model_bundle,
-                model_clust_thr=model_clust_thr)
+            model_bundle,
+            model_clust_thr=model_clust_thr)
 
         neighb_streamlines, neighb_indices = self._reduce_search_space(
             model_centroids,
@@ -246,7 +386,6 @@ class RecoBundles(object):
             return Streamlines([]), []
 
         if slr:
-
             transf_streamlines, slr1_bmd = self._register_neighb_to_model(
                 model_bundle,
                 neighb_streamlines,
@@ -255,8 +394,8 @@ class RecoBundles(object):
                 bounds=slr_bounds,
                 select_model=slr_select[0],
                 select_target=slr_select[1],
-                method=slr_method)
-
+                method=slr_method,
+                num_threads=slr_num_threads)
         else:
             transf_streamlines = neighb_streamlines
 
@@ -266,12 +405,9 @@ class RecoBundles(object):
             neighb_indices,
             pruning_thr=pruning_thr,
             pruning_distance=pruning_distance)
-
         if self.verbose:
-            print('Total duration of recognition time is %0.3f sec.\n'
-                  % (time()-t,))
-        # return recognized bundle, labels of
-        # recognized bundle
+            logger.info('Total duration of recognition time is %0.3f sec.\n'
+                        % (time()-t,))
 
         return pruned_streamlines, self.filtered_indices[labels]
 
@@ -329,19 +465,24 @@ class RecoBundles(object):
         .. [Garyfallidis17] Garyfallidis et al. Recognition of white matter
             bundles using local and global streamline-based registration and
             clustering, Neuroimage, 2017.
-        """
 
+        .. [Chandio2020] Chandio, B.Q., Risacher, S.L., Pestilli, F.,
+        Bullock, D., Yeh, FC., Koudoro, S., Rokem, A., Harezlack, J., and
+        Garyfallidis, E. Bundle analytics, a computational framework for
+        investigating the shapes and profiles of brain pathways across
+        populations. Sci Rep 10, 17149 (2020)
+        """
         if self.verbose:
             t = time()
-            print('## Refine recognize given bundle ## \n')
+            logger.info('## Refine recognize given bundle ## \n')
 
         model_centroids = self._cluster_model_bundle(
-                model_bundle,
-                model_clust_thr=model_clust_thr)
+            model_bundle,
+            model_clust_thr=model_clust_thr)
 
         pruned_model_centroids = self._cluster_model_bundle(
-                pruned_streamlines,
-                model_clust_thr=model_clust_thr)
+            pruned_streamlines,
+            model_clust_thr=model_clust_thr)
 
         neighb_streamlines, neighb_indices = self._reduce_search_space(
             pruned_model_centroids,
@@ -352,7 +493,7 @@ class RecoBundles(object):
             return Streamlines([]), []
 
         if self.verbose:
-            print("2nd local Slr")
+            logger.info("2nd local Slr")
 
         if slr:
             transf_streamlines, slr2_bmd = self._register_neighb_to_model(
@@ -364,9 +505,8 @@ class RecoBundles(object):
                 select_model=slr_select[0],
                 select_target=slr_select[1],
                 method=slr_method)
-
         if self.verbose:
-            print("pruning after 2nd local Slr")
+            logger.info("pruning after 2nd local Slr")
 
         pruned_streamlines, labels = self._prune_what_not_in_model(
             model_centroids,
@@ -376,13 +516,13 @@ class RecoBundles(object):
             pruning_distance=pruning_distance)
 
         if self.verbose:
-            print('Total duration of recognition time is %0.3f sec.\n'
-                  % (time()-t,))
+            logger.info('Total duration of recognition time is %0.3f sec.\n'
+                        % (time()-t,))
 
         return pruned_streamlines, self.filtered_indices[labels]
 
     def evaluate_results(self, model_bundle, pruned_streamlines, slr_select):
-        """ Comapare the similiarity between two given bundles, model bundle,
+        """ Compare the similiarity between two given bundles, model bundle,
         and extracted bundle.
 
         Parameters
@@ -396,7 +536,7 @@ class RecoBundles(object):
         Returns
         -------
         ba_value : float
-            bundle analytics value between model bundle and pruned bundle
+            bundle adjacency value between model bundle and pruned bundle
         bmd_value : float
             bundle minimum distance value between model bundle and
             pruned bundle
@@ -404,14 +544,16 @@ class RecoBundles(object):
 
         spruned_streamlines = Streamlines(pruned_streamlines)
         recog_centroids = self._cluster_model_bundle(
-                spruned_streamlines,
-                model_clust_thr=1.25)
+            spruned_streamlines,
+            model_clust_thr=1.25)
         mod_centroids = self._cluster_model_bundle(
-                model_bundle,
-                model_clust_thr=1.25)
+            model_bundle,
+            model_clust_thr=1.25)
         recog_centroids = Streamlines(recog_centroids)
         model_centroids = Streamlines(mod_centroids)
-        ba_value = ba_analysis(recog_centroids, model_centroids, threshold=10)
+        ba_value = bundle_adjacency(set_number_of_points(recog_centroids, 20),
+                                    set_number_of_points(model_centroids, 20),
+                                    threshold=10)
 
         BMD = BundleMinDistanceMetric()
         static = select_random_set_of_streamlines(model_bundle,
@@ -433,43 +575,41 @@ class RecoBundles(object):
 
         if self.verbose:
             t = time()
-            print('# Cluster model bundle using QBX')
-            print(' Model bundle has %d streamlines'
-                  % (len(model_bundle), ))
-            print(' Distance threshold %0.3f' % (model_clust_thr,))
+            logger.info('# Cluster model bundle using QBX')
+            logger.info(' Model bundle has %d streamlines'
+                        % (len(model_bundle), ))
+            logger.info(' Distance threshold %0.3f' % (model_clust_thr,))
         thresholds = self.start_thr + [model_clust_thr]
 
         model_cluster_map = qbx_and_merge(model_bundle, thresholds,
                                           nb_pts=nb_pts,
                                           select_randomly=select_randomly,
-                                          rng=self.rng,
-                                          verbose=self.verbose)
+                                          rng=self.rng)
         model_centroids = model_cluster_map.centroids
         nb_model_centroids = len(model_centroids)
-
         if self.verbose:
-            print(' Model bundle has %d centroids'
-                  % (nb_model_centroids,))
-            print(' Duration %0.3f sec. \n' % (time() - t, ))
+            logger.info(' Model bundle has %d centroids'
+                        % (nb_model_centroids,))
+            logger.info(' Duration %0.3f sec. \n' % (time() - t, ))
         return model_centroids
 
     def _reduce_search_space(self, model_centroids,
                              reduction_thr=20, reduction_distance='mdf'):
         if self.verbose:
             t = time()
-            print('# Reduce search space')
-            print(' Reduction threshold %0.3f' % (reduction_thr,))
-            print(' Reduction distance {}'.format(reduction_distance))
+            logger.info('# Reduce search space')
+            logger.info(' Reduction threshold %0.3f' % (reduction_thr,))
+            logger.info(' Reduction distance {}'.format(reduction_distance))
 
         if reduction_distance.lower() == 'mdf':
             if self.verbose:
-                print(' Using MDF')
+                logger.info(' Using MDF')
             centroid_matrix = bundles_distances_mdf(model_centroids,
                                                     self.centroids)
         elif reduction_distance.lower() == 'mam':
             if self.verbose:
-                print(' Using MAM')
-            centroid_matrix = bundles_distances_mdf(model_centroids,
+                logger.info(' Using MAM')
+            centroid_matrix = bundles_distances_mam(model_centroids,
                                                     self.centroids)
         else:
             raise ValueError('Given reduction distance not known')
@@ -488,13 +628,14 @@ class RecoBundles(object):
         nb_neighb_streamlines = len(neighb_streamlines)
 
         if nb_neighb_streamlines == 0:
-            print(' You have no neighbor streamlines... No bundle recognition')
+            if self.verbose:
+                logger.info('You have no neighbor streamlines... ' +
+                            'No bundle recognition')
             return Streamlines([]), []
-
         if self.verbose:
-            print(' Number of neighbor streamlines %d' %
-                  (nb_neighb_streamlines,))
-            print(' Duration %0.3f sec. \n' % (time() - t,))
+            logger.info(' Number of neighbor streamlines %d' %
+                        (nb_neighb_streamlines,))
+            logger.info(' Duration %0.3f sec. \n' % (time() - t,))
 
         return neighb_streamlines, neighb_indices
 
@@ -502,14 +643,13 @@ class RecoBundles(object):
                                   metric=None, x0=None, bounds=None,
                                   select_model=400, select_target=600,
                                   method='L-BFGS-B',
-                                  nb_pts=20):
-
+                                  nb_pts=20, num_threads=None):
         if self.verbose:
-            print('# Local SLR of neighb_streamlines to model')
+            logger.info('# Local SLR of neighb_streamlines to model')
             t = time()
 
         if metric is None or metric == 'symmetric':
-            metric = BundleMinDistanceMetric()
+            metric = BundleMinDistanceMetric(num_threads=num_threads)
         if metric == 'asymmetric':
             metric = BundleMinDistanceAsymmetricMetric()
         if metric == 'diagonal':
@@ -545,17 +685,17 @@ class RecoBundles(object):
         slr_iterations = slm.iterations
 
         if self.verbose:
-            print(' Square-root of BMD is %.3f' % (np.sqrt(slr_bmd),))
+            logger.info(' Square-root of BMD is %.3f' % (np.sqrt(slr_bmd),))
             if slr_iterations is not None:
-                print(' Number of iterations %d' % (slr_iterations,))
-            print(' Matrix size {}'.format(slm.matrix.shape))
+                logger.info(' Number of iterations %d' % (slr_iterations,))
+            logger.info(' Matrix size {}'.format(slm.matrix.shape))
             original = np.get_printoptions()
             np.set_printoptions(3, suppress=True)
-            print(transf_matrix)
-            print(slm.xopt)
+            logger.info(transf_matrix)
+            logger.info(slm.xopt)
             np.set_printoptions(**original)
 
-            print(' Duration %0.3f sec. \n' % (time() - t,))
+            logger.info(' Duration %0.3f sec. \n' % (time() - t,))
 
         return transf_streamlines, slr_bmd
 
@@ -565,36 +705,33 @@ class RecoBundles(object):
                                  mdf_thr=5,
                                  pruning_thr=10,
                                  pruning_distance='mdf'):
-
-        if pruning_thr < 0:
-            print('Pruning_thr has to be greater or equal to 0')
-
         if self.verbose:
-            print('# Prune streamlines using the MDF distance')
-            print(' Pruning threshold %0.3f' % (pruning_thr,))
-            print(' Pruning distance {}'.format(pruning_distance))
+            if pruning_thr < 0:
+                logger.info('Pruning_thr has to be greater or equal to 0')
+
+            logger.info('# Prune streamlines using the MDF distance')
+            logger.info(' Pruning threshold %0.3f' % (pruning_thr,))
+            logger.info(' Pruning distance {}'.format(pruning_distance))
             t = time()
 
         thresholds = [40, 30, 20, 10, mdf_thr]
         rtransf_cluster_map = qbx_and_merge(transf_streamlines,
                                             thresholds, nb_pts=20,
                                             select_randomly=500000,
-                                            rng=self.rng,
-                                            verbose=self.verbose)
-
+                                            rng=self.rng)
         if self.verbose:
-            print(' QB Duration %0.3f sec. \n' % (time() - t, ))
+            logger.info(' QB Duration %0.3f sec. \n' % (time() - t, ))
 
         rtransf_centroids = rtransf_cluster_map.centroids
 
         if pruning_distance.lower() == 'mdf':
             if self.verbose:
-                print(' Using MDF')
+                logger.info(' Using MDF')
             dist_matrix = bundles_distances_mdf(model_centroids,
                                                 rtransf_centroids)
         elif pruning_distance.lower() == 'mam':
             if self.verbose:
-                print(' Using MAM')
+                logger.info(' Using MAM')
             dist_matrix = bundles_distances_mam(model_centroids,
                                                 rtransf_centroids)
         else:
@@ -603,32 +740,30 @@ class RecoBundles(object):
         dist_matrix[dist_matrix > pruning_thr] = np.inf
 
         pruning_matrix = dist_matrix.copy()
-
         if self.verbose:
-            print(' Pruning matrix size is (%d, %d)'
-                  % pruning_matrix.shape)
+            logger.info(' Pruning matrix size is (%d, %d)'
+                        % pruning_matrix.shape)
 
         mins = np.min(pruning_matrix, axis=0)
         pruned_indices = [rtransf_cluster_map[i].indices
                           for i in np.where(mins != np.inf)[0]]
         pruned_indices = list(chain(*pruned_indices))
-        pruned_streamlines = transf_streamlines[np.array(pruned_indices)]
+        idx = np.array(pruned_indices)
+        if len(idx) == 0:
+            if self.verbose:
+                logger.info(' You have removed all streamlines')
+            return Streamlines([]), []
+
+        pruned_streamlines = transf_streamlines[idx]
 
         initial_indices = list(chain(*neighb_indices))
         final_indices = [initial_indices[i] for i in pruned_indices]
         labels = final_indices
-
         if self.verbose:
             msg = ' Number of centroids: %d'
-            print(msg % (len(rtransf_centroids),))
+            logger.info(msg % (len(rtransf_centroids),))
             msg = ' Number of streamlines after pruning: %d'
-            print(msg % (len(pruned_streamlines),))
-
-        if len(pruned_streamlines) == 0:
-            print(' You have removed all streamlines')
-            return Streamlines([]), []
-
-        if self.verbose:
-            print(' Duration %0.3f sec. \n' % (time() - t, ))
+            logger.info(msg % (len(pruned_streamlines),))
+            logger.info(' Duration %0.3f sec. \n' % (time() - t, ))
 
         return pruned_streamlines, labels
